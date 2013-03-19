@@ -1,0 +1,7 @@
+var x, foo in
+
+x := 1;
+foo := () => { output x };
+
+x := 2;
+foo()

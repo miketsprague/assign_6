@@ -1,0 +1,60 @@
+var makeCoord2D, pointA, pointB in
+
+makeCoord2D := (x, y) => 
+{
+  << private fields >>
+  var xCoord, yCoord in
+
+  xCoord := x;
+  yCoord := y;
+
+  << public methods >>
+  (todo, arg) =>
+  {
+    if      (todo = "getX") xCoord
+    else if (todo = "getY") yCoord
+    else if (todo = "setX") xCoord := arg
+    else if (todo = "setY") yCoord := arg
+    else undef
+  }
+};
+
+pointA := makeCoord2D(5, 6);
+pointB := makeCoord2D(7, 9);
+
+pointA( "setX", 2 );
+pointB( "setY", pointA( "getX", undef ) );
+
+output pointA( "getX", undef ); << 2 >>
+output pointA( "getY", undef ); << 6 >>
+output pointB( "getX", undef ); << 7 >>
+output pointB( "getY", undef ); << 2 >>
+
+var makeCoord3D, pointC, pointD in
+
+makeCoord3D := (x, y, z) =>
+{
+  << 'parent' is the parent class >>
+  var parent, zCoord in
+
+  parent := makeCoord2D(x, y);
+  zCoord := z;
+
+  << public methods >>
+  (todo, arg) =>
+  {
+    if      (todo = "getZ") zCoord
+    else if (todo = "setZ") zCoord := arg
+    else parent( todo, arg )
+  }
+};
+
+pointC := makeCoord3D(1, 2, 3);
+pointD := makeCoord3D(4, 5, 6);
+
+pointC( "setY", 12 );
+pointD( "setZ", pointC( "getY", undef ) );
+
+output pointC( "getX", undef ); << 1 >>
+output pointC( "getY", undef ); << 12 >>
+output pointC( "getZ", undef )  << 3 >>

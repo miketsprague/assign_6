@@ -1,0 +1,6 @@
+var foo, bar in
+
+foo := (a) => { a };
+bar := (b) => { output b };
+
+foo(bar)(42)
