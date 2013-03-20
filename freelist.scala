@@ -176,7 +176,7 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
              }
              val p = heap(previous)
              heap(previous) = p match{
-              case FreeMetadata(blocks2, _) => FreeMetadata(blocks2,current+blocks-diff)
+              case FreeMetadata(blocks2, _) => FreeMetadata(blocks2,current+blocks-dif)
               case _ =>
              }
              finished = true
