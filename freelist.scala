@@ -172,11 +172,11 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
              val dif = (blocks  - allocSize(s)+1)
              if ( dif > 0){
               //make new free block
-              heap(blocks - dif) = FreeMetadata(dif,next)
+              heap(current + blocks - dif) = FreeMetadata(dif,next)
              }
              val p = heap(previous)
              heap(previous) = p match{
-              case FreeMetadata(blocks, _) => FreeMetadata(blocks,next)
+              case FreeMetadata(blocks2, _) => FreeMetadata(blocks2,current+blocks-diff)
               case _ =>
              }
              finished = true
@@ -206,14 +206,13 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
     var previous = current
     while (validAddress(current)){
       val c = heap(current)
-      if ( (live contains Address(current))==false){
+      if ( (live contains Address(current))==false){ // dead address
         c match { 
           case AllocatedMetadata(blocks, _) =>{
-            val p = heap(previous)
-            heap(previous) = p match{
-              case FreeMetadata(blocks2,_) => FreeMetadata(blocks2+blocks,current+blocks)
+            heap(previous) match{
+              case FreeMetadata(blocks2,_) => heap(previous) = FreeMetadata(blocks2+blocks,current+blocks)
               // coalesce and replace with free block
-              case _ =>
+              case _ => heap(current) = FreeMetadata(blocks,current+blocks)
             }
           }
           case _ =>
@@ -224,8 +223,8 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
             case FreeMetadata(blocks,next) => {
               current = next
               val p = heap(previous)
-              heap(previous) = p match{
-                case FreeMetadata(blocks2,_) => FreeMetadata(blocks2+blocks,current+blocks)
+              p match{
+                case FreeMetadata(blocks2,_) =>  heap(previous) = FreeMetadata(blocks2+blocks,current+blocks)
                 // coalesce and replace with free block
                 case _ => previous = current
               }
