@@ -102,18 +102,18 @@ trait HeapInterface extends DebugTrace {
   // followed by the serialized object.  This assumes that it's safe to perform
   // this write
   def writeTo(s: Storable, pos: Int){
-  assertValidAddress(pos)
-  val typ = getType(s)
-  val serializer = serialize(typ)
-  assert(serializer.isDefinedAt(s))
-  val items = serializer(s)
-  assertValidAddress(pos + items.size)
-  heap(pos) = AllocatedMetadata(items.size + 1, typ)
-  items.foldLeft(pos + 1)((curPos, curItem) => {
-    heap(curPos) = curItem
-    curPos + 1
-    })
-}
+    assertValidAddress(pos)
+    val typ = getType(s)
+    val serializer = serialize(typ)
+    assert(serializer.isDefinedAt(s))
+    val items = serializer(s)
+    assertValidAddress(pos + items.size)
+    heap(pos) = AllocatedMetadata(items.size + 1, typ)
+    items.foldLeft(pos + 1)((curPos, curItem) => {
+      heap(curPos) = curItem
+      curPos + 1
+      })
+  }
 
   // useful for debugging purposes
   def printHeap() {
@@ -140,51 +140,61 @@ case class FreeMetadata(blocksAvailable: Int, next: Int)
 //     methods for manipulating this information
 class Freelist(size: Int) extends Heap(size) with DebugTrace {
   // create the list head(s) and write the necessary metadata to show
-  // that we have room
+  // that we have room (our meta data takes up 1 unit, subtrack it from the available total)
+  heap(0) = FreeMetadata(size-1, -1)
 
   // allocates the given storable, starting from the address of a list head
   // throws OOM if there isn't enough memory
   def allocate(s: Storable, listHead: Int): Address = {
-
-    var finished = false
     var current = listHead
-    var previous = current
-    while( finished == false){
+    // Previous block adjacent to current (not the last free block!)
+    var previous = -1
+
+    while(true){
       if ( validAddress(current) == false){
-        finished = true
         throw OOM()
-        }else{
-          heap(current) match {
-            case AllocatedMetadata(blocks, _ ) => {
-              current = current+blocks
-            }
-            case FreeMetadata(blocks, next) => {
+        return Address(-1) // this line shouldn't get hit.
+      }else{
+        heap(current) match {
+          case AllocatedMetadata(blocks, _ ) => {
+            current = current+blocks
+          }
+          case FreeMetadata(blocks, next) => {
             //check if its big enough
             if (blocks < allocSize(s)+1) {
               //not big enough -- keep looking
               previous = current
-              current = next
-            }
-            else{
-             //big enough -- write the information
-             writeTo(s,current)
+              current = current+blocks
+            } else{
+               //big enough -- write the information
+               trace("writing " + s + " at index " + current)
+               writeTo(s,current)
 
-             val dif = (blocks  - allocSize(s)+1)
-             if ( dif > 0){
-              //make new free block
-              heap(current + blocks - dif) = FreeMetadata(dif,next)
-             }
-             val p = heap(previous)
-             heap(previous) = p match{
-              case FreeMetadata(blocks2, _) => FreeMetadata(blocks2,current+blocks-dif)
-              case _ =>
-             }
-             finished = true
-           }
-         }
-       }
-     }
-   }
+               val dif = (blocks  - (allocSize(s)+1))
+               if ( dif > 1){
+                // Update the free block
+                val freeLoc = current + allocSize(s) + 1
+                trace("sizing down to " + (dif-1))
+                heap(freeLoc) = FreeMetadata(dif-1, next)
+
+                // If there was a previous free block, we want to make it point to the new free block
+                val p = if (previous >= 0) heap(previous) else None
+                p match{
+                  case FreeMetadata(blocks2, _) => { 
+                    // Update the old pointer to point to us for free memory
+                    heap(previous) = FreeMetadata(blocks2,freeLoc) 
+                  }
+                  case _ => 
+                } 
+              }
+              // Doesn't matter since we're ending.
+              return Address(current)
+            }
+          }
+          case _ => { println("Hit null!  This shouldn't ever happen!"); throw OOM() }
+        }
+      }
+    }
     // ---FILL ME IN---
     //
     // HINTS:
@@ -203,35 +213,71 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
   // the list head and the ending address of the space we are collecting
   def collectAllBut(live: Set[Address], listHead: Int, end: Int) {
     var current = listHead
-    var previous = current
-    while (validAddress(current)){
+    trace("Cleaning all memory except for " + live + " starting at " + listHead + "and ending at " + end)
+    // Previous keeps track of the last block with metadata.
+    // Not the last free block!
+    // This is because we want to see if we can use previous to expand (coalesce)
+    var previous = -1
+    // Go from our head to the end.
+    while (current <= end){
+      // Get the object at index current from the heap.
       val c = heap(current)
-      if ( (live contains Address(current))==false){ // dead address
+      // If we don't want to save this address
+      if (!(live contains Address(current))){ 
         c match { 
+          // If it's an allocated block, we want to make it a free block.
           case AllocatedMetadata(blocks, _) =>{
-            heap(previous) match{
-              case FreeMetadata(blocks2,_) => heap(previous) = FreeMetadata(blocks2+blocks,current+blocks)
-              // coalesce and replace with free block
+            // If the last block is also free, we want to combine them.
+            trace("Found an allocated block that we want to remove at index " + current)
+            val p = if (previous >= 0) heap(previous) else None
+            p match{
+              case FreeMetadata(blocks2,_) => { 
+                trace("Combining our dead data with free data")
+                heap(previous) = FreeMetadata(blocks2+blocks,current+blocks)
+                // Clear ourself (does this matter?)
+                // Yo dawg, I heard you like garbage collectors
+                // so we wrote a garbage collector who's garbage is collected by the JVM through scala to collect your garbage
+                // ^ I suck.  That didn't work at all.
+                heap(current) = Nil 
+              }
+              // otherwise, just coalesce and replace with free block
               case _ => heap(current) = FreeMetadata(blocks,current+blocks)
             }
+            // On on on to the next one.
+            previous = current
+            current = current + blocks
           }
-          case _ =>
+          case FreeMetadata(blocks, _) => { previous = current; current = current + blocks }
+          case _ => { trace("Hit unrecognized object.  Most likely, this should be the last index..." + current); current = current+1}
         }
-        }else{
+      }else{
           c match{
-            case AllocatedMetadata(blocks, _) => current = current+blocks
+            // Move along, sir.
+            // We don't do anything if its allocated and we want to keep it!
+            case AllocatedMetadata(blocks, _) => { previous = current; current = current+blocks }
+            // Otherwise, it's free.  Try to coalesce it.
             case FreeMetadata(blocks,next) => {
-              current = next
-              val p = heap(previous)
+           //   current = current + blocks
+              val p = if (previous >= 0) heap(previous) else None
               p match{
-                case FreeMetadata(blocks2,_) =>  heap(previous) = FreeMetadata(blocks2+blocks,current+blocks)
-                // coalesce and replace with free block
-                case _ => previous = current
+               // coalesce and replace with free block
+                case FreeMetadata(blocks2,_) => { 
+                  heap(previous) = FreeMetadata(blocks2+blocks,current+blocks);
+                  heap(current) = Nil
+                }
+                case _ => { }
               }
+
+              previous = current
+              current = current + blocks
             }
           }
         }
       }
+
+
+
+
     // ---FILL ME IN---
     //
     // HINTS:
