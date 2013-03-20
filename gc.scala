@@ -79,28 +79,57 @@ class StubCollector(max: Int) extends Heap(max) with Collector {
 
 trait TracingCollector extends Collector {
 
+  // obj: the object to deeply search for references
+  // seen: (rootset) set of already seen objects
+  // returns: unique set of addresses that are references by obj
   def extract(obj: Storable, seen: MSet[Address]): MSet[Address] = {
-       val trav: MSet[Address] = seen
-      trav = obj match {
-      	case ObjectV(a) => if (seen contains a) trav else {trav + a ++ extract(gcRead(a),seen+a)}
-	case Cell(hd,tl) => if (seen contains tl) trav else {trav + tl ++ extract(gcRead(tl),seen+tl)}
-	case ObjectCons(key,value,next) => if (seen contains next) trav else {trav + next ++ extract(gcRead(next),seen+next)}
-	case Address => if (seen contains obj) trav else {trav + obj}
-	case _ => trav
-      }
-      trav
+       val trav: MSet[Address] = obj match {
+            case addr @ Address(a) => {
+                if (seen contains addr) 
+                    MSet() 
+                else {
+                    MSet(addr)
+                }
+            }
+            case ObjectV(a) => {
+                if (seen contains a) 
+                    MSet()
+                else {
+                    MSet(a) ++ extract(gcRead(a),seen+a)
+                }
+            }
+            case Cell(hd,tl) => {
+                if (seen contains tl) 
+                    MSet()
+                else {
+                    MSet(tl) ++ extract(gcRead(tl),seen+tl)
+                }
+            }
+            case ObjectCons(key,value,next) => {
+                if (seen contains next) 
+                    MSet() 
+                else {
+                    MSet(next) ++ extract(gcRead(next),seen+next)
+                }
+            }
+            case _ => MSet() 
+       }
+       trav
   }
 
+  // Returns a set of items that are reachable
   def traceReachable(): Set[Address] = {
     val roots = rootSet()
-    val seen: MSet[Address] = new MSet()
+    var seen: MSet[Address] = new MSet()
     
-    for r in roots{
-    	val traced = extract(root,seen)
-	seen = seen + traced
-    }
+    roots.foreach(root => {
+    	seen = seen ++ extract(root,seen)
+    })
     
-    seen
+    //var ret: Set[Address] = Set()
+    //seen.foreach( a => ret += a)
+    //ret
+    seen.toSet
     
     // ---FILL ME IN---
     //
