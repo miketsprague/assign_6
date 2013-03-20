@@ -78,9 +78,29 @@ class StubCollector(max: Int) extends Heap(max) with Collector {
 }
 
 trait TracingCollector extends Collector {
+
+  def extract(obj: Storable, seen: MSet[Address]): MSet[Address] = {
+       val trav: MSet[Address] = seen
+      trav = obj match {
+      	case ObjectV(a) => if (seen contains a) trav else {trav + a ++ extract(gcRead(a),seen+a)}
+	case Cell(hd,tl) => if (seen contains tl) trav else {trav + tl ++ extract(gcRead(tl),seen+tl)}
+	case ObjectCons(key,value,next) => if (seen contains next) trav else {trav + next ++ extract(gcRead(next),seen+next)}
+	case Address => if (seen contains obj) trav else {trav + obj}
+	case _ => trav
+      }
+      trav
+  }
+
   def traceReachable(): Set[Address] = {
     val roots = rootSet()
     val seen: MSet[Address] = new MSet()
+    
+    for r in roots{
+    	val traced = extract(root,seen)
+	seen = seen + traced
+    }
+    
+    seen
     
     // ---FILL ME IN---
     //
@@ -88,7 +108,6 @@ trait TracingCollector extends Collector {
     // Recurively trace through the roots.  If an address is found that doesn't
     // already exist in the addresses we've already seen, then traverse it by
     // reading in the object from the store.
-    null
   }
 
   def rootSet(): Set[Storable] = RootSet()
