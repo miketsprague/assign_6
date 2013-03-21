@@ -140,8 +140,8 @@ case class FreeMetadata(blocksAvailable: Int, next: Int)
 //     methods for manipulating this information
 class Freelist(size: Int) extends Heap(size) with DebugTrace {
   // create the list head(s) and write the necessary metadata to show
-  // that we have room (our meta data takes up 1 unit, subtrack it from the available total)
-  heap(0) = FreeMetadata(size-1, -1)
+  // that we have room 
+  heap(0) = FreeMetadata(size, -1)
 
   // allocates the given storable, starting from the address of a list head
   // throws OOM if there isn't enough memory
@@ -209,6 +209,36 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
     null
   }
 
+  // msprague:
+  // try to coalesce two blocks of memory given a previous location and a current location.
+  // return true if we coalesced and false if we didn't
+  def attemptCoalesce(current : Int, previous: Int) : Boolean = {
+    val currentData = if(validAddress(current)) heap(current) else None
+    val previousData = if(validAddress(previous)) heap(previous) else None
+
+    // We can only coalesce if we have two adjacent free blocks
+    currentData match {
+      case FreeMetadata(blockSize, nextFree) => { 
+        previousData match {
+          case FreeMetadata(prevSize, _) => {
+                trace("Combining free data!")
+                heap(previous) = FreeMetadata(prevSize+blockSize+1, nextFree)
+                // Clear ourself (does this matter?) <- No
+                heap(current) = Nil 
+                // Yo dawg, I heard you like garbage collectors
+                // so we wrote a garbage collector who's garbage is collected by the JVM through scala to collect your garbage
+                // ^ I suck.  That didn't work at all.
+                return true
+          }
+          case _ => { return false }
+        }
+      }
+      case _ => { return false }
+    }
+
+    return false // should be unreachable
+  }
+
   // takes a set of addresses that are known to be live, along with the address of
   // the list head and the ending address of the space we are collecting
   def collectAllBut(live: Set[Address], listHead: Int, end: Int) {
@@ -227,27 +257,22 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
         c match { 
           // If it's an allocated block, we want to make it a free block.
           case AllocatedMetadata(blocks, _) =>{
+            // XXX How do we know the next free block location?
+            heap(current) = FreeMetadata(blocks,current+blocks)  
             // If the last block is also free, we want to combine them.
-            trace("Found an allocated block that we want to remove at index " + current)
-            val p = if (previous >= 0) heap(previous) else None
-            p match{
-              case FreeMetadata(blocks2,_) => { 
-                trace("Combining our dead data with free data")
-                heap(previous) = FreeMetadata(blocks2+blocks,current+blocks)
-                // Clear ourself (does this matter?)
-                // Yo dawg, I heard you like garbage collectors
-                // so we wrote a garbage collector who's garbage is collected by the JVM through scala to collect your garbage
-                // ^ I suck.  That didn't work at all.
-                heap(current) = Nil 
-              }
-              // otherwise, just coalesce and replace with free block
-              case _ => heap(current) = FreeMetadata(blocks,current+blocks)
+            if(!attemptCoalesce(current, previous)) {
+              // Didn't coalesce, update the previous free location to our spot
+              previous = current
             }
-            // On on on to the next one.
-            previous = current
+
             current = current + blocks
           }
-          case FreeMetadata(blocks, _) => { previous = current; current = current + blocks }
+          case FreeMetadata(blocks, _) => { 
+            if(!attemptCoalesce(current, previous)) {
+              previous = current
+            }
+            current = current + blocks
+          }
           case _ => { trace("Hit unrecognized object.  Most likely, this should be the last index..." + current); current = current+1}
         }
       }else{
@@ -257,18 +282,9 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
             case AllocatedMetadata(blocks, _) => { previous = current; current = current+blocks }
             // Otherwise, it's free.  Try to coalesce it.
             case FreeMetadata(blocks,next) => {
-           //   current = current + blocks
-              val p = if (previous >= 0) heap(previous) else None
-              p match{
-               // coalesce and replace with free block
-                case FreeMetadata(blocks2,_) => { 
-                  heap(previous) = FreeMetadata(blocks2+blocks,current+blocks);
-                  heap(current) = Nil
-                }
-                case _ => { }
+              if(!attemptCoalesce(current, previous)) {
+                previous = current
               }
-
-              previous = current
               current = current + blocks
             }
           }
