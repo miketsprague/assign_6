@@ -44,9 +44,9 @@ trait HeapInterface extends DebugTrace {
   // NOTE: validAddress is called by many things
   // you may want to make this more specific for your own GC.  As
   // defined, this is pretty lenient
-  def validAddress(pos: Int): Boolean =
+  def validAddress(pos: Int): Boolean = {
   pos >= 0 && pos < heap.length
-
+  } 
   def assertValidAddress(pos: Int) {
     assert(validAddress(pos))
   }
@@ -153,7 +153,7 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
     while(true){
       if ( validAddress(current) == false){
         throw OOM()
-        return Address(-1) // this line shouldn't get hit.
+        //return Address(-1) // this line shouldn't get hit.
       }else{
         heap(current) match {
           case AllocatedMetadata(blocks, _ ) => {
@@ -188,6 +188,7 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
                 } 
               }
               // Doesn't matter since we're ending.
+              trace("returning address " + Address(current))
               return Address(current)
             }
           }
@@ -249,7 +250,7 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
     // This is because we want to see if we can use previous to expand (coalesce)
     var previous = -1
     // Go from our head to the end.
-    while (current <= end){
+    while (current < end){
       // Get the object at index current from the heap.
       val c = heap(current)
       // If we don't want to save this address

@@ -47,10 +47,12 @@ sealed trait Collector extends HeapInterface with DebugTrace {
     RootSet.popExtra()
     a.loc = newAddr.loc
   }
-  def validAddress(a: Address): Boolean =
-    validAddress(a.loc)
+  def AddressValidAddress(a: Address): Boolean ={
+    trace(" this is a :"+a)
+    if ( a!=null ) validAddress(a.loc) else false
+  }
   def assertValidAddress(a: Address) {
-    assert(validAddress(a))
+    assert(AddressValidAddress(a))
   }
 }
 
@@ -71,13 +73,18 @@ class StubCollector(max: Int) extends Heap(max) with Collector {
     }
   }
     
-  def gcRead(a: Address): Storable = {
+  override def gcRead(a: Address): Storable = {
     trace("Attempting to read from address " + a)
     readFrom(a.loc)
   }
 }
 
 trait TracingCollector extends Collector {
+
+  override def gcRead(a: Address): Storable = {
+    trace("Attempting to read from address " + a)
+    readFrom(a.loc)
+  }
 
   // obj: the object to deeply search for references
   // seen: (rootset) set of already seen objects
@@ -187,7 +194,7 @@ class SemispaceCollector(max: Int) extends Heap(max) with TracingCollector {
     })
   }
 
-  def gcRead(a: Address): Storable = {
+  override def gcRead(a: Address): Storable = {
     trace("Attempting to read from address " + a)
     readFrom(a.loc)
   }
@@ -195,24 +202,40 @@ class SemispaceCollector(max: Int) extends Heap(max) with TracingCollector {
 
 
 class MarkSweepCollector(max: Int) extends Freelist(max) with TracingCollector {
+  override def gcRead(a: Address): Storable = {
+    trace("Attempting to read from address " + a)
+    readFrom(a.loc)
+  }
+
   def gcAlloc(s: Storable): Address = {
+    var done = false
+    var a : Address = null
+    while(!done){
+      try{
+        a = allocate(s,0)
+        done = true
+      } catch {
+        case OOM() => { doGC() //if we get OOM, do a gc
+          a = allocate(s,0)
+          done = true
+        }
+        case _ => trace("oh no!") //we got some other error... lets gc anyway
+      }
+    } 
+    a
     // ---FILL ME IN---
     // Freelist's allocate function does the bulk of the work.  The important bit
     // is that GC needs to be triggered if allocate threw an OOM
-    null
   }
 
   def doGC() {
     val live = traceReachable()
+    collectAllBut(live,0,max)
+
     // ---FILL ME IN---
     // Freelist's collectAllBut function does exactly what you need here; it's‌
     // just a matter of passing the right parameters
     trace("## gcAlloc: GC complete, found " + live.size + " live objects")
-  }
-
-  def gcRead(a: Address): Storable = {
-    trace("## gcRead: Attempting to read from address " + a)
-    readFrom(a.loc)
   }
 }
 
@@ -246,7 +269,7 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
     null
   }
 
-  def gcRead(a: Address): Storable = {
+  override def gcRead(a: Address): Storable = {
     trace("## gcRead: Attempting to read from address " + a)
     readFrom(a.loc)
   }

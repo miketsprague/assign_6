@@ -20,7 +20,7 @@ for i in files:
 	for j in range(0,1):
 
 
-            command = "cd build; scala Checker " + "../test\ suite/" + i + ".not"
+            command = "cd build; scala miniJS -gc mark -size 100 " + "../test_suite/" + i + ".not"
             pipe = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
             output = pipe.stdout.read()
             output = "\n".join([line for line in output.split("\n")
