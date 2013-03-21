@@ -158,6 +158,7 @@ trait TracingCollector extends Collector {
 // Allocate into the to-space.  When the to-space becomes full, copy
 // live objects into the from-space.  Once that is complete, swap the
 // from and to spaces.
+// DONE!
 class SemispaceCollector(max: Int) extends Heap(max) with TracingCollector {
   if (max % 2 != 0) {
     throw undefined
