@@ -12,30 +12,30 @@ pass_count = 0
 total_count = 0
 
 
-files = [ "fail%s" % str(i) for i in range(1, 31) ]
-files += [ "pass0%s" % str(i) for i in range(1, 6) ]
-#print files
+command = "ls test_suite/"
+pipe = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
+files = pipe.stdout.read()
+files = [file for file in files.split('\n') if(file)]
+print "running "
+print files
+
+#gcs = ["mark", "semi"] # add generational.
+gcs = ["mark"]
 
 for i in files:
-	for j in range(0,1):
-
-
-            command = "cd build; scala miniJS -gc mark -size 100 " + "../test_suite/" + i + ".not"
+  for gc in gcs:
+            command = "cd build; scala miniJS -gc " + gc + " -size 400 " + "../test_suite/" + i
             pipe = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
             output = pipe.stdout.read()
-            output = "\n".join([line for line in output.split("\n")
-                                if line != "DEBUG: Retrying commit."])
+            parsed_output = "\n".join([line for line in output.split("\n") if "exception" in line or "assertion" in line or "OOM" in line])
             total_count += 1
 
             print "Test %s" % repr(i)
             print "Got: "
-            if(output.find("NOT secure!") != -1 and i.find("fail") != -1 or output.find("secure!") != -1 and i.find("pass") != -1):
-                print "Success!"
-                pass_count += 1
+            if(len(parsed_output) > 1):
+              fail_count += 1
             else:
-                print "Failure!"
-                fail_count += 1
-
+              pass_count += 1
             print output
 
 print "***** " + str(pass_count) + " tests PASSED *****"

@@ -184,6 +184,7 @@ class SemispaceCollector(max: Int) extends Heap(max) with TracingCollector {
   }
 
   def gcAlloc(s: Storable): Address = {
+      printHeap()
       trace("## gcAlloc: allocating space for " + s)
       val size = allocSize(s) + 1           // + 1 for metadata
       var top  = bumpPointer > max / 2
