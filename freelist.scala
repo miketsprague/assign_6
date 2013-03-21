@@ -245,11 +245,8 @@ class Freelist(size: Int) extends Heap(size+1) with DebugTrace {
   // the list head and the ending address of the space we are collecting
   def collectAllBut(live: Set[Address], listHead: Int, end: Int) {
     var current = listHead
-<<<<<<< HEAD
     //println("Cleaning all memory except for " + live + " starting at " + listHead + "and ending at " + end)
-=======
     trace("Cleaning all memory except for " + live + " starting at " + listHead + "and ending at " + end)
->>>>>>> 8b39c3b0689baa94af433c43d33f722c62a4cc86
     // Previous keeps track of the last block with metadata.
     // Not the last free block!
     // This is because we want to see if we can use previous to expand (coalesce)
