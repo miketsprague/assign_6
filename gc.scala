@@ -173,21 +173,14 @@ class SemispaceCollector(max: Int) extends Heap(max) with TracingCollector {
     bumpPointer = toStart
   }
 
-/*
-  def gcAlloc(s: Storable): Address = {
-    trace("## gcAlloc: allocating space for " + s)
-    val size = allocSize(s) + 1 // + 1 for metadata
-    if (validAddress(nextAddress) && validAddress(nextAddress + size)) {
-      val a = nextAddress
-      writeTo(s, a)
-      nextAddress += size
-      trace("## gcAlloc: allocated space for " + s + " at address " + a)
-      Address(a)
-    } else {
-      throw OOM()
-    }
+  def checkMetadata(a: Address): Boolean = {
+      heap(a.loc) match {
+          case AllocatedMetadata => true
+          case FreeMetadata      => false
+          case _                 => false
+      }
   }
-  */
+
   def gcAlloc(s: Storable): Address = {
       trace("## gcAlloc: allocating space for " + s)
       val size = allocSize(s) + 1           // + 1 for metadata
@@ -203,13 +196,13 @@ class SemispaceCollector(max: Int) extends Heap(max) with TracingCollector {
           } else {
               trace("## gcAlloc: writing object " + s + " at address " + bumpPointer)
               // write object
-              writeTo(s, bumpPointer)
+              writeTo(s, bumpPointer - size)
               Address(bumpPointer)
           }
       } else {
           trace("## gcAlloc: writing object " + s + " at address " + bumpPointer)
           // write object
-          writeTo(s, bumpPointer)
+          writeTo(s, bumpPointer - size)
           Address(bumpPointer)
       }
 
@@ -229,6 +222,7 @@ class SemispaceCollector(max: Int) extends Heap(max) with TracingCollector {
     val live = traceReachable()
     trace("LIVE: " + live.toString())
     trace("ROOT: " + RootSet.extra.toString())
+    printHeap()
     live.foreach(a => {
       // ---FILL ME IN---
       // newAddr should be an address corresponding to the new address of the object
@@ -236,12 +230,17 @@ class SemispaceCollector(max: Int) extends Heap(max) with TracingCollector {
       trace("## doGC: got new address at " + bumpPointer)
       val newAddr: Address = Address(bumpPointer)
       // copy the old object to the newAddr
-      trace("## doGC: reading old object from  " + a.loc)
-      val obj = readFrom(a.loc)
-      trace("## doGC: writing old object at " + bumpPointer)
-      writeTo(obj, bumpPointer)
-      bumpPointer += allocSize(obj) + 1     // +1 for metadata
-      a.loc = newAddr.loc
+     // if (checkMetadata(a)) {
+          trace("## doGC: Metadata checks out!")
+          trace("## doGC: reading old object from  " + a.loc)
+          val obj = readFrom(a.loc)
+          trace("## doGC: writing old object at " + bumpPointer)
+          writeTo(obj, bumpPointer)
+          bumpPointer += allocSize(obj) + 1     // +1 for metadata
+          a.loc = newAddr.loc
+     // } else {
+     //     trace("## doGC: Metadata does NOT check out! BOOO")
+     // }
     })
   }
 
