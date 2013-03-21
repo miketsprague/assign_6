@@ -93,11 +93,15 @@ trait TracingCollector extends Collector {
   def extract(obj: Storable, seen: MSet[Address]): MSet[Address] = {
        val trav: MSet[Address] = obj match {
             case addr @ Address(a) => {
-                println("addrs " + addr)
+              if (!seen.contains(addr)) {
+                trace("addrs " + addr)
                 MSet(addr) ++ extract(gcRead(addr),seen+addr)
+              } else {
+                MSet(addr)
+              }
             }
             case ObjectV(a) => {
-                println("object " + a)
+                trace("object " + a)
                 if (seen contains a) 
                     MSet(a)
                 else {
@@ -105,7 +109,7 @@ trait TracingCollector extends Collector {
                 }
             }
             case Cell(hd,tl) => {
-                println("cell " + tl)
+                trace("cell " + tl)
                 if (seen contains tl) 
                     MSet(tl)
                 else {
@@ -113,13 +117,24 @@ trait TracingCollector extends Collector {
                 }
             }
             case ObjectCons(key,value,next) => {
-                println("object cons " + next)
+                trace("object cons " + next)
                 if (seen contains next) 
                     MSet(next) 
                 else { 
                     MSet(next) ++ extract(value, seen+next) ++ extract(gcRead(next),seen+next)
                 }
             }
+
+            case CloV(_, _, rho) => {
+              var retVal : MSet[Address] = new MSet()
+              rho.rootSet().foreach(
+                  root => {
+                    retVal = retVal ++ extract(root, seen)
+                  }
+                )
+              retVal
+            }
+
             case _ => { MSet() }
 
        }
@@ -129,12 +144,12 @@ trait TracingCollector extends Collector {
   // Returns a set of items that are reachable
   def traceReachable(): Set[Address] = {
     val roots = rootSet()
-    println("root set " + roots)
+    trace("root set " + roots)
     var seen: MSet[Address] = new MSet()
     
     roots.foreach(root => {
     	seen = seen ++ extract(root,seen)
-      println("seen " + seen)
+      trace("seen " + seen)
     })
     
     //var ret: Set[Address] = Set()
@@ -269,10 +284,10 @@ class MarkSweepCollector(max: Int) extends Freelist(max) with TracingCollector {
         done = true
       } catch {
         case OOM() => { 
-          println("before gc")
+          trace("before gc")
           printHeap()
           doGC() //if we get OOM, do a gc
-          println("after gc")
+          trace("after gc")
           printHeap()
           a = allocate(s,0)
           done = true
