@@ -195,16 +195,16 @@ class SemispaceCollector(max: Int) extends Heap(max) with TracingCollector {
           if ((top && bumpPointer > max) || (!top && bumpPointer > max / 2)) {  // No more room left
               throw OOM()
           } else {
-              trace("## gcAlloc: writing object " + s + " at address " + bumpPointer)
+              trace("## gcAlloc: writing object " + s + " at address " + (bumpPointer - size))
               // write object
               writeTo(s, bumpPointer - size)
-              Address(bumpPointer)
+              Address(bumpPointer - size)
           }
       } else {
-          trace("## gcAlloc: writing object " + s + " at address " + bumpPointer)
+          trace("## gcAlloc: writing object " + s + " at address " + (bumpPointer - size))
           // write object
           writeTo(s, bumpPointer - size)
-          Address(bumpPointer)
+          Address(bumpPointer - size)
       }
 
     // ---FILL ME IN---
