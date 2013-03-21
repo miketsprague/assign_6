@@ -44,11 +44,11 @@ trait HeapInterface extends DebugTrace {
   // NOTE: validAddress is called by many things
   // you may want to make this more specific for your own GC.  As
   // defined, this is pretty lenient
-  def validAddress(pos: Int): Boolean = {
-  pos >= 0 && pos < heap.length
+  def validAddress(pos: Int, max: Int = heap.length): Boolean = {
+  pos >= 0 && pos < max
   } 
-  def assertValidAddress(pos: Int) {
-    assert(validAddress(pos))
+  def assertValidAddress(pos: Int, max: Int = heap.length) {
+    assert(validAddress(pos,max))
   }
 
   val deserialize: Map[StorableType, (Int, PartialFunction[List[Any], Storable])] =
@@ -146,13 +146,13 @@ class Freelist(size: Int) extends Heap(size+1) with DebugTrace {
 
   // allocates the given storable, starting from the address of a list head
   // throws OOM if there isn't enough memory
-  def allocate(s: Storable, listHead: Int): Address = {
+  def allocate(s: Storable, listHead: Int, end: Int = size): Address = {
     var current = listHead
-    // Previous block adjacent to current (not the last free block!)
+    // Previous free block
     var previous = -1
 
     while(true){
-      if ( validAddress(current+allocSize(s) ) == false){
+      if ( validAddress(current+allocSize(s),end) == false){
         throw OOM()
         //return Address(-1) // this line shouldn't get hit.
       }else{
@@ -165,7 +165,7 @@ class Freelist(size: Int) extends Heap(size+1) with DebugTrace {
             if (blocks < allocSize(s)+1) {
               //not big enough -- keep looking
               previous = current
-              current = current+blocks
+              current = next // go one by one
             } else{
                //big enough -- write the information
                trace("writing " + s + " at index " + current)
@@ -179,7 +179,7 @@ class Freelist(size: Int) extends Heap(size+1) with DebugTrace {
                 heap(freeLoc) = FreeMetadata(dif, next)
 
                 // If there was a previous free block, we want to make it point to the new free block
-                val p = if (previous >= 0) heap(previous) else None
+                val p = if (previous > -1) heap(previous) else None
                 p match{
                   case FreeMetadata(blocks2, _) => { 
                     // Update the old pointer to point to us for free memory
@@ -245,7 +245,7 @@ class Freelist(size: Int) extends Heap(size+1) with DebugTrace {
   // the list head and the ending address of the space we are collecting
   def collectAllBut(live: Set[Address], listHead: Int, end: Int) {
     var current = listHead
-    println("Cleaning all memory except for " + live + " starting at " + listHead + "and ending at " + end)
+    //println("Cleaning all memory except for " + live + " starting at " + listHead + "and ending at " + end)
     // Previous keeps track of the last block with metadata.
     // Not the last free block!
     // This is because we want to see if we can use previous to expand (coalesce)

@@ -129,12 +129,12 @@ trait TracingCollector extends Collector {
   // Returns a set of items that are reachable
   def traceReachable(): Set[Address] = {
     val roots = rootSet()
-    println("root set " + roots)
+    //println("root set " + roots)
     var seen: MSet[Address] = new MSet()
     
     roots.foreach(root => {
     	seen = seen ++ extract(root,seen)
-      println("seen " + seen)
+      //println("seen " + seen)
     })
     
     //var ret: Set[Address] = Set()
@@ -184,7 +184,7 @@ class SemispaceCollector(max: Int) extends Heap(max) with TracingCollector {
   }
 
   def gcAlloc(s: Storable): Address = {
-      printHeap()
+      //printHeap()
       trace("## gcAlloc: allocating space for " + s)
       val size = allocSize(s) + 1           // + 1 for metadata
       var top  = bumpPointer > max / 2
@@ -220,6 +220,7 @@ class SemispaceCollector(max: Int) extends Heap(max) with TracingCollector {
   }
   
   def doGC() {
+    println(" GC GC GC GC ")
     trace("## doGC: Garbage collecting")
     swapSpaces()
     val live = traceReachable()
@@ -269,11 +270,11 @@ class MarkSweepCollector(max: Int) extends Freelist(max) with TracingCollector {
         done = true
       } catch {
         case OOM() => { 
-          println("before gc")
-          printHeap()
+          //println("before gc")
+          //printHeap()
           doGC() //if we get OOM, do a gc
-          println("after gc")
-          printHeap()
+          //println("after gc")
+          //printHeap()
           a = allocate(s,0)
           done = true
         }
@@ -300,6 +301,10 @@ class MarkSweepCollector(max: Int) extends Freelist(max) with TracingCollector {
 class GenerationalCollector(val nurserySize: Int, val tenuredSize: Int) 
 extends Freelist(nurserySize + tenuredSize) with TracingCollector {
   val backPointers: Buffer[Address] = Buffer()
+
+  val nurseryHead = 0
+  val tenuredHead = nurserySize
+
   // HINTS:
   // 1.) There are a number of ways to implement the generational collector.
   //     However, the simplest will probably involve reusing a lot of the same 
@@ -318,13 +323,26 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
   //     objects to be in hash sets.
 
   def gcAlloc(s: Storable): Address = {
+    var done = false
+    var a : Address = null
+    while(!done){
+    try {
+      a = allocateInNursery(s)
+      done = true
+    } catch {
+      case OOM() => minorGC()
+      case w @ _ => throw w
+    }
+    }
+    a
+
+
     // ---FILL ME IN---
     //
     // HINTS:
     // Try to allocate in the nursery.  If there isn't enough room there, then
     // do a minor GC.  Minor GC could trigger major GC if there isn't enough
     // room to copy live things from the nursery over to the tenured heap
-    null
   }
 
   override def gcRead(a: Address): Storable = {
@@ -368,18 +386,38 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
     }
   }
 
-  def allocateInNursery(s: Storable): Address = null
+  def allocateInNursery(s: Storable): Address = {
+    allocate(s,nurseryHead,nurserySize)
+
     // ---FILL ME IN---
     // Call Freelist's allocate method, using the freelist head specifically
     // for the nursery
+  }
 
-  def allocateInTenured(s: Storable): Address = null
+  def allocateInTenured(s: Storable): Address = {
+    allocate(s,tenuredHead)
     // ---FILL ME IN---
     // Call Freelist's allocate method, using the freelist head specifically
     // for the tenured heap
+  }
+
+  override def rootSet(): Set[Storable] = {
+    RootSet() ++ backPointers.map(b => gcRead(b))
+  }
 
   // may trigger major GC
   def minorGC() {
+    traceReachable().foreach(a => 
+      if(inNursery(a)){
+          try { gcModify(a, allocateInTenured(gcRead(a))) //allocate the new object, and modify its address
+            } catch{ 
+              case OOM() => majorGC()
+              case w @ _ => throw w
+            }
+          }
+          )
+    heap(0)=(FreeMetadata(nurserySize,-1))
+
     // ---FILL ME IN---
     //
     // HINTS:
@@ -398,18 +436,34 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
     // since everything should be in the tenured heap anyway at that point.
   }
 
-  def inNursery(a: Address): Boolean = false
+  def inNursery(a: Address): Boolean = a.loc >= nurseryHead && a.loc < nurserySize
     // ---FILL ME IN---
     // Return true if the address exists in the nursery, else false.
     // This should only take a single line
 
-  def inTenured(a: Address): Boolean = false
+  def inTenured(a: Address): Boolean = a.loc >= tenuredHead && a.loc < tenuredSize+nurserySize
     // ---FILL ME IN---
     // Return true if the address exists in the tenured heap, else false.
     // This should only take a single line
 
 
   def majorGC() {
+    //since the tenured space is full, first try to clear it:
+    collectAllBut(traceReachable(),tenuredHead,tenuredSize+nurserySize)
+
+    //now we should have enough room to copy the live addresses in the nursery to the tenured space
+    // THIS IS JUST LIKE MINOR GC, EXCEPT WE THROW THE OOM EXCEPTION
+    traceReachable().foreach(a => 
+      if(inNursery(a)){
+          try { gcModify(a, allocateInTenured(gcRead(a))) //allocate the new object, and modify its address
+            } catch{ 
+              case w @ _ => throw w
+            }
+          }
+          )
+    heap(0)=(FreeMetadata(nurserySize,-1))
+
+
     // ---FILL ME IN---
     //
     // HINTS:
