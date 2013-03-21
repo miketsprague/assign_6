@@ -92,6 +92,7 @@ trait TracingCollector extends Collector {
   def extract(obj: Storable, seen: MSet[Address]): MSet[Address] = {
        val trav: MSet[Address] = obj match {
             case addr @ Address(a) => {
+                println("addrs " + addr)
                 if (seen contains addr) 
                     MSet() 
                 else {
@@ -99,13 +100,15 @@ trait TracingCollector extends Collector {
                 }
             }
             case ObjectV(a) => {
+                println("object " + a)
                 if (seen contains a) 
-                    MSet()
+                    MSet(a)
                 else {
                     MSet(a) ++ extract(gcRead(a),seen+a)
                 }
             }
             case Cell(hd,tl) => {
+                println("cell " + tl)
                 if (seen contains tl) 
                     MSet()
                 else {
@@ -113,13 +116,14 @@ trait TracingCollector extends Collector {
                 }
             }
             case ObjectCons(key,value,next) => {
+                println("object cons " + next)
                 if (seen contains next) 
                     MSet() 
-                else {
+                else { 
                     MSet(next) ++ extract(gcRead(next),seen+next)
                 }
             }
-            case _ => MSet() 
+            case _ => { MSet() }
        }
        trav
   }
@@ -127,10 +131,12 @@ trait TracingCollector extends Collector {
   // Returns a set of items that are reachable
   def traceReachable(): Set[Address] = {
     val roots = rootSet()
+    println("root set " + roots)
     var seen: MSet[Address] = new MSet()
     
     roots.foreach(root => {
     	seen = seen ++ extract(root,seen)
+      println("seen " + seen)
     })
     
     //var ret: Set[Address] = Set()
@@ -215,11 +221,16 @@ class MarkSweepCollector(max: Int) extends Freelist(max) with TracingCollector {
         a = allocate(s,0)
         done = true
       } catch {
-        case OOM() => { doGC() //if we get OOM, do a gc
+        case OOM() => { 
+          println("before gc")
+          printHeap()
+          doGC() //if we get OOM, do a gc
+          println("after gc")
+          printHeap()
           a = allocate(s,0)
           done = true
         }
-        case _ => trace("oh no!") //we got some other error... lets gc anyway
+        case w @ _ => throw w
       }
     } 
     a
