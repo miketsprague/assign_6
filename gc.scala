@@ -481,19 +481,29 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
 
   def majorGC() {
     trace( " MAJOR GC!!!!!!!!!!!!! ")
-    //since the tenured space is full, first try to clear it:
-    collectAllBut(traceReachable(),tenuredHead,tenuredSize+nurserySize)
-
-    //now we should have enough room to copy the live addresses in the nursery to the tenured space
+    var liveInTenured: MSet[Address] = new MSet()
+    var liveInNursery: MSet[Address] = new MSet()
     // THIS IS JUST LIKE MINOR GC, EXCEPT WE THROW THE OOM EXCEPTION
     traceReachable().foreach(a => 
       if(inNursery(a)){
+        liveInNursery = liveInNursery + a
+      }
+        else if (inTenured(a)){
+          liveInTenured = liveInTenured + a
+        }
+          )
+    // first, lets try to collect the tenured space
+    collectAllBut(liveInTenured.toSet,tenuredHead,tenuredHead+tenuredSize)
+
+    // now, lets check if we have enough room to move over the nursery objects
+   (liveInNursery).foreach(a => 
           try { gcModify(a, allocateInTenured(gcRead(a))) //allocate the new object, and modify its address
             } catch{ 
+              case OOM() => { trace("Now we've really run out of memory"); throw OOM() }
               case w @ _ => throw w
             }
-          }
           )
+
     heap(0)=(FreeMetadata(nurserySize,-1))
 
 
