@@ -138,10 +138,11 @@ case class FreeMetadata(blocksAvailable: Int, next: Int)
 // 2.) Allocated blocks start with an AllocatedMetadata object, followed by
 //     the serialized version of the object.  Use Heap's readFrom and writeTo
 //     methods for manipulating this information
-class Freelist(size: Int) extends Heap(size) with DebugTrace {
+//  Incremdent the size by one to make room for the metadata
+class Freelist(size: Int) extends Heap(size+1) with DebugTrace {
   // create the list head(s) and write the necessary metadata to show
-  // that we have room 
-  heap(0) = FreeMetadata(size, -1)
+  // that we have room .
+  heap(0) = FreeMetadata(size+1, -1)
 
   // allocates the given storable, starting from the address of a list head
   // throws OOM if there isn't enough memory
