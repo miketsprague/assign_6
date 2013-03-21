@@ -38,10 +38,16 @@ gcs = ["semi", "mark", "gen"] # order matters ^^^
 
 for name, size in files.iteritems():
   for i, gc in enumerate(gcs):
-            if(i == 2):
-                continue # skip gen
+            #if(i == 2):
+            # continue # skip gen
+            txt = ""
+            s = size[i]
+            if(i==2):
+                txt = " -tenured_size " + str(s*3)
+           #     s = s/10
 
-            command = "cd build; scala miniJS -gc " + gc + " -size " + str(size[i]) + " ../test_suite/" + name
+
+            command = "cd build; scala miniJS -gc " + gc + " -size " + str(s) + txt + " -trace ../test_suite/" + name
             print command
             pipe = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
             output = pipe.stdout.read()

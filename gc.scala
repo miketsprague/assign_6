@@ -409,7 +409,12 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
   }
 
   def allocateInNursery(s: Storable): Address = {
+    try{
     allocate(s,nurseryHead,nurserySize)
+    }
+    catch{
+      case w @ _ => throw w
+    } 
 
     // ---FILL ME IN---
     // Call Freelist's allocate method, using the freelist head specifically
@@ -417,7 +422,11 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
   }
 
   def allocateInTenured(s: Storable): Address = {
+    try{
     allocate(s,tenuredHead)
+    }catch{
+      case w @ _ => throw w
+    }
     // ---FILL ME IN---
     // Call Freelist's allocate method, using the freelist head specifically
     // for the tenured heap
@@ -429,6 +438,7 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
 
   // may trigger major GC
   def minorGC() {
+    trace( " MINOR GC!!!!!!!!!!!!! ")
     traceReachable().foreach(a => 
       if(inNursery(a)){
           try { gcModify(a, allocateInTenured(gcRead(a))) //allocate the new object, and modify its address
@@ -470,6 +480,7 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
 
 
   def majorGC() {
+    trace( " MAJOR GC!!!!!!!!!!!!! ")
     //since the tenured space is full, first try to clear it:
     collectAllBut(traceReachable(),tenuredHead,tenuredSize+nurserySize)
 
