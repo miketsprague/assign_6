@@ -117,7 +117,7 @@ trait TracingCollector extends Collector {
                 if (seen contains next) 
                     MSet(next) 
                 else { 
-                    MSet(next) ++ extract(gcRead(next),seen+next)
+                    MSet(next) ++ extract(value, seen+next) ++ extract(gcRead(next),seen+next)
                 }
             }
             case _ => { MSet() }
