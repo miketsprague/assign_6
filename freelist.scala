@@ -81,7 +81,7 @@ trait HeapInterface extends DebugTrace {
        assert(constructor.isDefinedAt(items))
        constructor(items)
      }
-     case _ => throw undefined
+     case a @ _ => { trace("pos " + pos + " is a " + a + "!!!"); throw undefined }
    }
  }
 
@@ -151,7 +151,7 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
     var previous = -1
 
     while(true){
-      if ( validAddress(current) == false){
+      if ( validAddress(current+allocSize(s) ) == false){
         throw OOM()
         //return Address(-1) // this line shouldn't get hit.
       }else{
@@ -171,28 +171,29 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
                writeTo(s,current)
 
                val dif = (blocks  - (allocSize(s)+1))
-               if ( dif > 1){
+               if ( dif > 0){
                 // Update the free block
                 val freeLoc = current + allocSize(s) + 1
-                trace("sizing down to " + (dif-1))
-                heap(freeLoc) = FreeMetadata(dif-1, next)
+
+                heap(freeLoc) = FreeMetadata(dif, next)
 
                 // If there was a previous free block, we want to make it point to the new free block
                 val p = if (previous >= 0) heap(previous) else None
                 p match{
                   case FreeMetadata(blocks2, _) => { 
                     // Update the old pointer to point to us for free memory
+                    trace("updating the old free meta data to point to us...")
                     heap(previous) = FreeMetadata(blocks2,freeLoc) 
                   }
                   case _ => 
                 } 
               }
               // Doesn't matter since we're ending.
-              trace("returning address " + Address(current))
+              trace("Creating object at index " + current + " for addr " + Address(current))
               return Address(current)
             }
           }
-          case _ => { println("Hit null!  This shouldn't ever happen!"); throw OOM() }
+          case _ => { /*println("Hit null!  This shouldn't ever happen!");*/ throw OOM() }
         }
       }
     }
@@ -222,8 +223,7 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
       case FreeMetadata(blockSize, nextFree) => { 
         previousData match {
           case FreeMetadata(prevSize, _) => {
-                trace("Combining free data!")
-                heap(previous) = FreeMetadata(prevSize+blockSize+1, nextFree)
+                heap(previous) = FreeMetadata(prevSize+blockSize, nextFree)
                 // Clear ourself (does this matter?) <- No
                 heap(current) = Nil 
                 // Yo dawg, I heard you like garbage collectors
@@ -244,7 +244,7 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
   // the list head and the ending address of the space we are collecting
   def collectAllBut(live: Set[Address], listHead: Int, end: Int) {
     var current = listHead
-    trace("Cleaning all memory except for " + live + " starting at " + listHead + "and ending at " + end)
+    println("Cleaning all memory except for " + live + " starting at " + listHead + "and ending at " + end)
     // Previous keeps track of the last block with metadata.
     // Not the last free block!
     // This is because we want to see if we can use previous to expand (coalesce)
@@ -274,7 +274,7 @@ class Freelist(size: Int) extends Heap(size) with DebugTrace {
             }
             current = current + blocks
           }
-          case _ => { trace("Hit unrecognized object.  Most likely, this should be the last index..." + current); current = current+1}
+          case a @ _ => { trace("Hit unrecognized object." + a + "  Most likely, this should be the last index..." + current); current = current+1}
         }
       }else{
           c match{
