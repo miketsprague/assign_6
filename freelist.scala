@@ -146,7 +146,7 @@ class Freelist(size: Int) extends Heap(size+1) with DebugTrace {
 
   // allocates the given storable, starting from the address of a list head
   // throws OOM if there isn't enough memory
-  def allocate(s: Storable, listHead: Int, end: Int = size): Address = {
+  def allocate(s: Storable, listHead: Int, end: Int = heap.length): Address = {
     var current = listHead
     // Previous free block
     var previous = -1
