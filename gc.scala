@@ -327,6 +327,10 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
   val nurseryHead = 0
   val tenuredHead = nurserySize
 
+  // nursery:
+  heap(0) = FreeMetadata(nurserySize, nurserySize)
+  heap(nurserySize) = FreeMetadata(tenuredSize, -1)
+
   // HINTS:
   // 1.) There are a number of ways to implement the generational collector.
   //     However, the simplest will probably involve reusing a lot of the same 
@@ -347,7 +351,10 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
   def gcAlloc(s: Storable): Address = {
     var done = false
     var a : Address = null
+    trace("Before:")
+    printHeap()
     while(!done){
+
     try {
       a = allocateInNursery(s)
       done = true
@@ -355,7 +362,10 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
       case OOM() => minorGC()
       case w @ _ => throw w
     }
+      trace("Are we dont yet?" + done )
     }
+    trace("After")
+    printHeap()
     a
 
 
@@ -392,21 +402,21 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
       RootSet.pushExtra(v)
       backPointers += a
       try {
-	val newAddr = allocateInTenured(v)
-	a.loc = newAddr.loc
+        val newAddr = allocateInTenured(v)
+        a.loc = newAddr.loc
       } catch {
-	case _: OOM => {
-	  majorGC()
-	  val newAddr = allocateInTenured(v)
-	  a.loc = newAddr.loc
-	}
+        case _: OOM => {
+           majorGC()
+           val newAddr = allocateInTenured(v)
+           a.loc = newAddr.loc
+         }
       } finally {
-	RootSet.popExtra()
+        RootSet.popExtra()
       }
     } else {
       super.gcModify(a, v)
     }
-  }
+}
 
   def allocateInNursery(s: Storable): Address = {
     try{
@@ -423,6 +433,7 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
 
   def allocateInTenured(s: Storable): Address = {
     try{
+      trace("Allocating " + s + " in tenured")
     allocate(s,tenuredHead)
     }catch{
       case w @ _ => throw w
@@ -439,16 +450,18 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
   // may trigger major GC
   def minorGC() {
     trace( " MINOR GC!!!!!!!!!!!!! ")
+    try {
     traceReachable().foreach(a => 
       if(inNursery(a)){
-          try { gcModify(a, allocateInTenured(gcRead(a))) //allocate the new object, and modify its address
-            } catch{ 
-              case OOM() => majorGC()
-              case w @ _ => throw w
-            }
-          }
-          )
-    heap(0)=(FreeMetadata(nurserySize,-1))
+        val obj = gcRead(a)
+        val newAddr = allocateInTenured(obj)
+        gcModify(newAddr, obj) //allocate the new object, and modify its address
+      })
+    }catch{ 
+        case OOM() => majorGC()
+        case w @ _ => throw w
+    }
+    heap(0)=(FreeMetadata(nurserySize,nurserySize))
 
     // ---FILL ME IN---
     //
