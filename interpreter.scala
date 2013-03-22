@@ -7,6 +7,8 @@ import cs162.miniJS.gc._
 import Value._
 import Domains._
 
+import cs162.miniJS.freelist._ // XXX
+
 // the main entry point
 object miniJS {
 
@@ -93,6 +95,22 @@ object miniJS {
     val goAdr = σ += ObjectV() // global object (passed to non-methods)
     ρ.push("gObj" → goAdr)
     Interpreter.eval(ast)
+ //   gc.printHeap()
+  //  gc.collectAllBut(Nil, 0, size)
+  //  gc.printHeap()
+  gc.printHeap()
+
+    // val fl = new Freelist(size)
+    // fl.allocate(StrV("test"), 0)
+    // fl.allocate(StrV("tes2t"), 0)
+    // fl.allocate(StrV("test3"), 0)
+    // fl.allocate(StrV("test4"), 0)
+    // fl.allocate(StrV("test5"), 0)
+    // fl.allocate(StrV("test6"), 0)
+    // fl.allocate(StrV("test7"), 0)
+    // fl.printHeap() 
+    // fl.collectAllBut(Set(), 0, size-1)
+    // fl.printHeap()
     ρ.pop()
   }
 }

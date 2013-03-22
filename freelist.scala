@@ -166,6 +166,9 @@ class Freelist(size: Int) extends Heap(size+1) with DebugTrace {
               //not big enough -- keep looking
               previous = current
               current = next // go one by one
+              if(current < 0) {
+                throw OOM() // we're at the end of the list.
+              }
             } else{
                //big enough -- write the information
                trace("writing " + s + " at index " + current)

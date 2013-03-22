@@ -234,7 +234,7 @@ class SemispaceCollector(max: Int) extends Heap(max) with TracingCollector {
   }
   
   def doGC() {
-    println(" GC GC GC GC ")
+    trace(" GC GC GC GC ")
     trace("## doGC: Garbage collecting")
     swapSpaces()
     val live = traceReachable()
@@ -415,12 +415,15 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
 }
 
   def allocateInNursery(s: Storable): Address = {
+    var a = Address(-14482)
     try {
-    allocate(s,nurseryHead,nurserySize)
+    a = allocate(s,nurseryHead,nurserySize)
     }
     catch{
       case w @ _ => throw w
     } 
+
+    a
 
     // ---FILL ME IN---
     // Call Freelist's allocate method, using the freelist head specifically
@@ -428,12 +431,15 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
   }
 
   def allocateInTenured(s: Storable): Address = {
+    var a = Address(-14482)
     try {
-      trace("##allocInTenured: Allocating " + s + " in tenured")
-      allocate(s,tenuredHead)
+      trace("##allocInTenured: Allocating " + s + " in tenured from " + tenuredHead)
+      a = allocate(s,tenuredHead)
     } catch {
       case w @ _ => throw w
     }
+
+    a
     // ---FILL ME IN---
     // Call Freelist's allocate method, using the freelist head specifically
     // for the tenured heap
@@ -496,6 +502,7 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
     var liveInTenured: MSet[Address] = new MSet()
     var liveInNursery: MSet[Address] = new MSet()
     // THIS IS JUST LIKE MINOR GC, EXCEPT WE THROW THE OOM EXCEPTION
+    // msprague: WHY ARE WE YELLING
     traceReachable().foreach(a => 
       if(inNursery(a)){
         liveInNursery = liveInNursery + a
@@ -504,12 +511,21 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
           liveInTenured = liveInTenured + a
         }
           )
+
+    trace(liveInTenured.toSet.toString())
     // first, lets try to collect the tenured space
     collectAllBut(liveInTenured.toSet,tenuredHead,tenuredHead+tenuredSize)
 
     // now, lets check if we have enough room to move over the nursery objects
    (liveInNursery).foreach(a => 
-          try { gcModify(a, allocateInTenured(gcRead(a))) //allocate the new object, and modify its address
+          try { 
+            trace("## majorGC(): Reading live address " + a.loc)
+            val obj = gcRead(a)
+            trace("## majorGC(): Allocating size of obj at  " + a.loc + " to tenured")
+            val newAddr = allocateInTenured(obj)
+            trace("## majorGC(): New Address of obj is " + newAddr.loc + " in tenured")
+            gcModify(newAddr, obj) //allocate the new object, and modify its address
+
             } catch{ 
               case OOM() => { trace("Now we've really run out of memory"); throw OOM() }
               case w @ _ => throw w
