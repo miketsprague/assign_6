@@ -143,20 +143,17 @@ trait TracingCollector extends Collector {
 
   // Returns a set of items that are reachable
   def traceReachable(): Set[Address] = {
+    trace("## traceReachable: Starting trace!")
     val roots = rootSet()
-    //println("root set " + roots)
     trace("root set " + roots)
     var seen: MSet[Address] = new MSet()
     
     roots.foreach(root => {
+        //trace("## traceReachable: Extracting root")
     	seen = seen ++ extract(root,seen)
-      //println("seen " + seen)
       trace("seen " + seen)
     })
     
-    //var ret: Set[Address] = Set()
-    //seen.foreach( a => ret += a)
-    //ret
     seen.toSet
     
     // ---FILL ME IN---
@@ -355,14 +352,13 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
     printHeap()
     while(!done){
 
-    try {
-      a = allocateInNursery(s)
-      done = true
-    } catch {
-      case OOM() => minorGC()
-      case w @ _ => throw w
-    }
-      trace("Are we dont yet?" + done )
+        try {
+          a = allocateInNursery(s)
+          done = true
+        } catch {
+          case OOM() => minorGC()
+          case w @ _ => throw w
+        }
     }
     trace("After")
     printHeap()
@@ -419,7 +415,7 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
 }
 
   def allocateInNursery(s: Storable): Address = {
-    try{
+    try {
     allocate(s,nurseryHead,nurserySize)
     }
     catch{
@@ -432,10 +428,10 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
   }
 
   def allocateInTenured(s: Storable): Address = {
-    try{
-      trace("Allocating " + s + " in tenured")
-    allocate(s,tenuredHead)
-    }catch{
+    try {
+      trace("##allocInTenured: Allocating " + s + " in tenured")
+      allocate(s,tenuredHead)
+    } catch {
       case w @ _ => throw w
     }
     // ---FILL ME IN---
@@ -449,15 +445,18 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
 
   // may trigger major GC
   def minorGC() {
-    trace( " MINOR GC!!!!!!!!!!!!! ")
+    trace("## minorGC(): Starting minor Garbage Collector")
     try {
-    traceReachable().foreach(a => 
-      if(inNursery(a)){
-        val obj = gcRead(a)
-        val newAddr = allocateInTenured(obj)
-        gcModify(newAddr, obj) //allocate the new object, and modify its address
-      })
-    }catch{ 
+        traceReachable().foreach(a => 
+          if(inNursery(a)){
+            trace("## minorGC(): Reading live address " + a.loc)
+            val obj = gcRead(a)
+            trace("## minorGC(): Allocating size of obj at  " + a.loc + " to tenured")
+            val newAddr = allocateInTenured(obj)
+            trace("## minorGC(): New Address of obj is " + newAddr.loc + " in tenured")
+            gcModify(newAddr, obj) //allocate the new object, and modify its address
+          })
+    } catch { 
         case OOM() => majorGC()
         case w @ _ => throw w
     }
@@ -493,7 +492,7 @@ extends Freelist(nurserySize + tenuredSize) with TracingCollector {
 
 
   def majorGC() {
-    trace( " MAJOR GC!!!!!!!!!!!!! ")
+    trace("##majorGC(): Starting major Garbage Collector")
     var liveInTenured: MSet[Address] = new MSet()
     var liveInNursery: MSet[Address] = new MSet()
     // THIS IS JUST LIKE MINOR GC, EXCEPT WE THROW THE OOM EXCEPTION
